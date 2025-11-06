@@ -4,25 +4,29 @@ const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+require("dotenv").config(); // ✅ Add this line
 
 const app = express();
 app.use(cors());
-app.use("/uploads", express.static("uploads")); // serve uploaded files
+app.use("/uploads", express.static("uploads")); // Serve uploaded files
+app.use(express.json()); // Handle JSON payloads
 
-// ✅ MySQL Connection
+// ✅ MySQL Connection (Clever Cloud + Local fallback)
 const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "ivwksh7a",
-  database: "jobcloud"
+  host: process.env.DB_HOST || "byv8d8fkl1igdntxfgrm7-mysql.services.clever-cloud.com",
+  user: process.env.DB_USER || "u0zuail7471hurs7",
+  password: process.env.DB_PASSWORD || "veaUyTAt6BvCyWD5yJXs",
+  database: process.env.DB_NAME || "byv8d8fkl1igdntxfgrm7",
+  port: process.env.DB_PORT || 3306,
+  ssl: { rejectUnauthorized: false },
 });
 
-db.connect(err => {
+db.connect((err) => {
   if (err) {
     console.error("❌ Database connection failed:", err);
     return;
   }
-  console.log("✅ Connected to MySQL Database!");
+  console.log("✅ Connected to Clever Cloud MySQL Database!");
 });
 
 // ✅ Ensure uploads folder exists
@@ -31,43 +35,38 @@ if (!fs.existsSync(dir)) {
   fs.mkdirSync(dir);
 }
 
-// ✅ Multer Configuration (handle file + text fields)
+// ✅ Multer Configuration
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(null, uniqueSuffix + path.extname(file.originalname));
   },
 });
 
 const upload = multer({
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     const allowed = [
       "application/pdf",
       "application/msword",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error("❌ Only PDF or Word files allowed"), false);
+    allowed.includes(file.mimetype)
+      ? cb(null, true)
+      : cb(new Error("❌ Only PDF or Word files allowed"), false);
   },
 });
 
-// ✅ Test route
+// ✅ Root Route
 app.get("/", (req, res) => {
-  res.send("🚀 Backend is running successfully!");
+  res.send("🚀 Job Cloud backend is running successfully!");
 });
 
-// ✅ SIGNUP ROUTE (FIXED)
+// ✅ SIGNUP
 app.post("/signup", upload.single("resume"), (req, res) => {
   try {
-    console.log("Incoming Content-Type:", req.headers["content-type"]);
-    console.log("Body:", req.body); // Debugging line
-
-    // ✅ Destructure after Multer processed the form
     const {
       fullname,
       mobile,
@@ -112,13 +111,12 @@ app.post("/signup", upload.single("resume"), (req, res) => {
         password,
         resumePath,
       ],
-      (err, result) => {
+      (err) => {
         if (err) {
           console.error("❌ Database error:", err);
           return res.status(500).send("Error while signing up!");
         }
-        console.log("✅ User inserted successfully!");
-        res.send("✅ User registered successfully with all details!");
+        res.send("✅ User registered successfully!");
       }
     );
   } catch (error) {
@@ -127,10 +125,9 @@ app.post("/signup", upload.single("resume"), (req, res) => {
   }
 });
 
-// ✅ LOGIN ROUTE
-app.post("/login", express.json(), (req, res) => {
+// ✅ LOGIN
+app.post("/login", (req, res) => {
   const { email, password } = req.body;
-
   const sql = "SELECT * FROM users WHERE email = ? AND password = ?";
   db.query(sql, [email, password], (err, results) => {
     if (err) {
@@ -139,22 +136,21 @@ app.post("/login", express.json(), (req, res) => {
     }
 
     if (results.length > 0) {
-      const user = results[0];
-      res.json({ success: true, message: "✅ Login successful", user });
+      res.json({ success: true, message: "✅ Login successful", user: results[0] });
     } else {
       res.status(401).json({ success: false, message: "❌ Invalid email or password" });
     }
   });
 });
 
-// ✅ APPLICATION FORM SUBMISSION
+// ✅ APPLICATION SUBMISSION
 app.post("/submit-application", upload.single("resume"), (req, res) => {
   const { fullname, email, phone, cover_letter } = req.body;
   const resumePath = req.file ? req.file.path : null;
 
   const sql =
     "INSERT INTO applications (fullname, email, phone, cover_letter, resume_path) VALUES (?, ?, ?, ?, ?)";
-  db.query(sql, [fullname, email, phone, cover_letter, resumePath], (err, result) => {
+  db.query(sql, [fullname, email, phone, cover_letter, resumePath], (err) => {
     if (err) {
       console.error("❌ Error submitting application:", err);
       res.status(500).send("Error submitting application");
@@ -164,26 +160,24 @@ app.post("/submit-application", upload.single("resume"), (req, res) => {
   });
 });
 
-// ✅ Fetch user profile by email
+// ✅ FETCH USER PROFILE
 app.get("/user/:email", (req, res) => {
   const email = req.params.email;
-
-  const sql = "SELECT fullname, mobile, dob, gender, address, city, state, education, experience, skills, email, resume FROM users WHERE email = ?";
+  const sql =
+    "SELECT fullname, mobile, dob, gender, address, city, state, education, experience, skills, email, resume FROM users WHERE email = ?";
   db.query(sql, [email], (err, results) => {
     if (err) {
       console.error("❌ Error fetching user:", err);
       return res.status(500).send("Server error");
     }
 
-    if (results.length > 0) {
-      res.json(results[0]);
-    } else {
-      res.status(404).send("❌ User not found");
-    }
+    if (results.length > 0) res.json(results[0]);
+    else res.status(404).send("❌ User not found");
   });
 });
 
-
-app.listen(5000, () => {
-  console.log("🚀 Server running on http://localhost:5000");
+// ✅ Start Server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
