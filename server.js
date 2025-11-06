@@ -7,14 +7,25 @@ const fs = require("fs");
 require("dotenv").config(); // ✅ Add this line
 
 const app = express();
-app.use(cors({
-  origin: [
-    "https://nairkartik08.github.io/Job-Cloud/", // your actual GitHub Pages domain
-    "http://localhost:5500"       // for local testing (VS Code Live Server)
-  ],
-  methods: ["GET", "POST"],
-  credentials: true
-}));
+
+const allowedOrigins = [
+  "https://nairkartik08.github.io", // ✅ no trailing slash or subfolder
+  "http://localhost:5500"           // ✅ for local testing (VS Code Live Server)
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed for this origin"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  })
+);
 
 app.use("/uploads", express.static("uploads")); // Serve uploaded files
 app.use(express.json()); // Handle JSON payloads
@@ -128,8 +139,9 @@ app.post("/signup", upload.single("resume"), (req, res) => {
       }
     );
   } catch (error) {
-    console.error("❌ Unexpected error:", error);
-    res.status(500).send("Server error while signing up!");
+    console.error("❌ Signup error:", error);
+res.status(500).json({ message: "Server error while signing up!", error: error.message });
+
   }
 });
 
