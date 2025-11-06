@@ -208,6 +208,19 @@ app.get("/user/:email", (req, res) => {
   });
 });
 
+// ✅ Fetch all posted jobs
+app.get("/jobs", (req, res) => {
+  const sql = "SELECT * FROM applications ORDER BY submitted_at DESC";
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("❌ Error fetching jobs:", err);
+      return res.status(500).send("Error retrieving jobs");
+    }
+    res.json(results);
+  });
+});
+
+
 // ✅ POST JOB (Add new job)
 app.post("/add-job", express.json(), (req, res) => {
   const { title, company, location, description, salary, experience, skills } = req.body;
