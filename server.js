@@ -30,22 +30,26 @@ app.use(
 app.use("/uploads", express.static("uploads")); // Serve uploaded files
 app.use(express.json()); // Handle JSON payloads
 
-// ✅ MySQL Connection (Clever Cloud + Local fallback)
-const db = mysql.createConnection({
+// ✅ Use a connection pool (recommended for Render + Clever Cloud)
+const db = mysql.createPool({
   host: process.env.DB_HOST || "byv8d8fkl1igdntxfgrm7-mysql.services.clever-cloud.com",
   user: process.env.DB_USER || "u0zuail7471hurs7",
   password: process.env.DB_PASSWORD || "veaUyTAt6BvCyWD5yJXs",
   database: process.env.DB_NAME || "byv8d8fkl1igdntxfgrm7",
   port: process.env.DB_PORT || 3306,
   ssl: { rejectUnauthorized: false },
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
 
-db.connect((err) => {
+db.getConnection((err, connection) => {
   if (err) {
     console.error("❌ Database connection failed:", err);
     return;
   }
-  console.log("✅ Connected to Clever Cloud MySQL Database!");
+  console.log("✅ Connected to Clever Cloud MySQL Database (using pool)!");
+  connection.release();
 });
 
 // ✅ Ensure uploads folder exists
