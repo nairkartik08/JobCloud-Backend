@@ -7,7 +7,15 @@ const fs = require("fs");
 require("dotenv").config(); // ✅ Add this line
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://nairkartik08.github.io/Job-Cloud/", // your actual GitHub Pages domain
+    "http://localhost:5500"       // for local testing (VS Code Live Server)
+  ],
+  methods: ["GET", "POST"],
+  credentials: true
+}));
+
 app.use("/uploads", express.static("uploads")); // Serve uploaded files
 app.use(express.json()); // Handle JSON payloads
 
