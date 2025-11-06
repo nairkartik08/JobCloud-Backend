@@ -184,50 +184,6 @@ app.get("/user/:email", (req, res) => {
   });
 });
 
-// ✅ TEMPORARY: Initialize database tables
-app.get("/init-db", (req, res) => {
-  const createUsers = `
-    CREATE TABLE IF NOT EXISTS users (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      fullname VARCHAR(100) NOT NULL,
-      mobile VARCHAR(15),
-      dob DATE,
-      gender VARCHAR(10),
-      address VARCHAR(255),
-      city VARCHAR(100),
-      state VARCHAR(100),
-      education VARCHAR(150),
-      experience INT,
-      skills VARCHAR(255),
-      email VARCHAR(100) UNIQUE NOT NULL,
-      password VARCHAR(255) NOT NULL,
-      resume VARCHAR(255),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `;
-
-  const createApplications = `
-    CREATE TABLE IF NOT EXISTS applications (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      fullname VARCHAR(100),
-      email VARCHAR(100),
-      phone VARCHAR(15),
-      cover_letter TEXT,
-      resume_path VARCHAR(255),
-      submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `;
-
-  db.query(createUsers, (err) => {
-    if (err) return res.status(500).send("❌ Error creating users table: " + err.message);
-    db.query(createApplications, (err) => {
-      if (err) return res.status(500).send("❌ Error creating applications table: " + err.message);
-      res.send("✅ All tables created successfully on Clever Cloud!");
-    });
-  });
-});
-
-
 
 // ✅ Start Server
 const PORT = process.env.PORT || 5000;
