@@ -4,20 +4,18 @@ const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-require("dotenv").config(); // ✅ Add this line
+require("dotenv").config();
 
 const app = express();
 
-// ✅ Proper CORS setup for GitHub Pages + Localhost + Render
+// ✅ CORS setup
 const allowedOrigins = [
-  "https://nairkartik08.github.io", // GitHub Pages domain (no trailing slash)
-  "http://localhost:5500"           // Local testing
+  "https://nairkartik08.github.io",
+  "http://localhost:5500"
 ];
-
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no 'origin' (like mobile apps or curl)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -25,20 +23,18 @@ app.use(
         callback(new Error("CORS not allowed for this origin"));
       }
     },
-    methods: ["GET", "POST", "OPTIONS"], // Include OPTIONS for preflight
+    methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
-
-// ✅ Handle preflight requests directly
 app.options("*", cors());
 
+// ✅ Middleware
+app.use("/uploads", express.static("uploads"));
+app.use(express.json());
 
-app.use("/uploads", express.static("uploads")); // Serve uploaded files
-app.use(express.json()); // Handle JSON payloads
-
-// ✅ Use a connection pool (recommended for Render + Clever Cloud)
+// ✅ MySQL Pool Connection
 const db = mysql.createPool({
   host: process.env.DB_HOST || "byv8d8fkl1igdntxfgrm7-mysql.services.clever-cloud.com",
   user: process.env.DB_USER || "u0zuail7471hurs7",
@@ -52,21 +48,16 @@ const db = mysql.createPool({
 });
 
 db.getConnection((err, connection) => {
-  if (err) {
-    console.error("❌ Database connection failed:", err);
-    return;
-  }
-  console.log("✅ Connected to Clever Cloud MySQL Database (using pool)!");
+  if (err) return console.error("❌ Database connection failed:", err);
+  console.log("✅ Connected to Clever Cloud MySQL Database!");
   connection.release();
 });
 
 // ✅ Ensure uploads folder exists
 const dir = "./uploads";
-if (!fs.existsSync(dir)) {
-  fs.mkdirSync(dir);
-}
+if (!fs.existsSync(dir)) fs.mkdirSync(dir);
 
-// ✅ Multer Configuration
+// ✅ Multer Setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => {
@@ -74,10 +65,9 @@ const storage = multer.diskStorage({
     cb(null, uniqueSuffix + path.extname(file.originalname));
   },
 });
-
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = [
       "application/pdf",
@@ -97,64 +87,31 @@ app.get("/", (req, res) => {
 
 // ✅ SIGNUP
 app.post("/signup", upload.single("resume"), (req, res) => {
-  try {
-    const {
-      fullname,
-      mobile,
-      dob,
-      gender,
-      address,
-      city,
-      state,
-      education,
-      experience,
-      skills,
-      email,
-      password,
-    } = req.body || {};
+  const {
+    fullname, mobile, dob, gender,
+    address, city, state, education,
+    experience, skills, email, password
+  } = req.body || {};
+  const resumePath = req.file ? req.file.filename : null;
 
-    const resumePath = req.file ? req.file.filename : null;
+  if (!fullname || !email || !password)
+    return res.status(400).send("❌ Missing required fields!");
 
-    if (!fullname || !email || !password) {
-      return res.status(400).send("❌ Missing required fields!");
+  const sql = `
+    INSERT INTO users 
+    (fullname, mobile, dob, gender, address, city, state, education, experience, skills, email, password, resume)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  db.query(sql, [
+    fullname, mobile, dob, gender, address, city, state,
+    education, experience, skills, email, password, resumePath
+  ], (err) => {
+    if (err) {
+      console.error("❌ Database error:", err);
+      return res.status(500).send("Error while signing up!");
     }
-
-    const sql = `
-      INSERT INTO users 
-      (fullname, mobile, dob, gender, address, city, state, education, experience, skills, email, password, resume)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-
-    db.query(
-      sql,
-      [
-        fullname,
-        mobile,
-        dob,
-        gender,
-        address,
-        city,
-        state,
-        education,
-        experience,
-        skills,
-        email,
-        password,
-        resumePath,
-      ],
-      (err) => {
-        if (err) {
-          console.error("❌ Database error:", err);
-          return res.status(500).send("Error while signing up!");
-        }
-        res.send("✅ User registered successfully!");
-      }
-    );
-  } catch (error) {
-    console.error("❌ Signup error:", error);
-res.status(500).json({ message: "Server error while signing up!", error: error.message });
-
-  }
+    res.send("✅ User registered successfully!");
+  });
 });
 
 // ✅ LOGIN
@@ -167,11 +124,10 @@ app.post("/login", (req, res) => {
       return res.status(500).json({ success: false, message: "Error while logging in" });
     }
 
-    if (results.length > 0) {
+    if (results.length > 0)
       res.json({ success: true, message: "✅ Login successful", user: results[0] });
-    } else {
+    else
       res.status(401).json({ success: false, message: "❌ Invalid email or password" });
-    }
   });
 });
 
@@ -180,60 +136,44 @@ app.post("/submit-application", upload.single("resume"), (req, res) => {
   const { fullname, email, phone, cover_letter } = req.body;
   const resumePath = req.file ? req.file.path : null;
 
-  const sql =
-    "INSERT INTO applications (fullname, email, phone, cover_letter, resume_path) VALUES (?, ?, ?, ?, ?)";
+  const sql = `
+    INSERT INTO applications (fullname, email, phone, cover_letter, resume_path)
+    VALUES (?, ?, ?, ?, ?)
+  `;
   db.query(sql, [fullname, email, phone, cover_letter, resumePath], (err) => {
     if (err) {
       console.error("❌ Error submitting application:", err);
-      res.status(500).send("Error submitting application");
-    } else {
-      res.send("✅ Application submitted successfully");
+      return res.status(500).send("Error submitting application");
     }
+    res.send("✅ Application submitted successfully");
   });
 });
 
-// ✅ FETCH USER PROFILE
+// ✅ USER PROFILE
 app.get("/user/:email", (req, res) => {
   const email = req.params.email;
-  const sql =
-    "SELECT fullname, mobile, dob, gender, address, city, state, education, experience, skills, email, resume FROM users WHERE email = ?";
+  const sql = `
+    SELECT fullname, mobile, dob, gender, address, city, state,
+           education, experience, skills, email, resume
+    FROM users WHERE email = ?
+  `;
   db.query(sql, [email], (err, results) => {
-    if (err) {
-      console.error("❌ Error fetching user:", err);
-      return res.status(500).send("Server error");
-    }
-
+    if (err) return res.status(500).send("Server error");
     if (results.length > 0) res.json(results[0]);
     else res.status(404).send("❌ User not found");
   });
 });
 
-// ✅ Fetch all posted jobs
-app.get("/jobs", (req, res) => {
-  const sql = "SELECT * FROM applications ORDER BY submitted_at DESC";
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error("❌ Error fetching jobs:", err);
-      return res.status(500).send("Error retrieving jobs");
-    }
-    res.json(results);
-  });
-});
-
-
-// ✅ POST JOB (Add new job)
+// ✅ POST JOB
 app.post("/add-job", express.json(), (req, res) => {
   const { title, company, location, description, salary, experience, skills } = req.body;
-
-  if (!title || !company || !description) {
+  if (!title || !company || !description)
     return res.status(400).send("❌ Missing required fields!");
-  }
 
   const sql = `
     INSERT INTO jobs (title, company, location, description, salary, experience, skills)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `;
-
   db.query(sql, [title, company, location, description, salary, experience, skills], (err) => {
     if (err) {
       console.error("❌ Error posting job:", err);
@@ -243,7 +183,7 @@ app.post("/add-job", express.json(), (req, res) => {
   });
 });
 
-// ✅ GET JOBS (Fetch all jobs)
+// ✅ FETCH ALL JOBS (Final Working One)
 app.get("/jobs", (req, res) => {
   const sql = "SELECT * FROM jobs ORDER BY posted_at DESC";
   db.query(sql, (err, results) => {
@@ -255,9 +195,6 @@ app.get("/jobs", (req, res) => {
   });
 });
 
-
 // ✅ Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
