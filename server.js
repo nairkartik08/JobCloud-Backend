@@ -8,24 +8,32 @@ require("dotenv").config(); // ✅ Add this line
 
 const app = express();
 
+// ✅ Proper CORS setup for GitHub Pages + Localhost + Render
 const allowedOrigins = [
-  "https://nairkartik08.github.io", // ✅ no trailing slash or subfolder
-  "http://localhost:5500"           // ✅ for local testing (VS Code Live Server)
+  "https://nairkartik08.github.io", // GitHub Pages domain (no trailing slash)
+  "http://localhost:5500"           // Local testing
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
+      // Allow requests with no 'origin' (like mobile apps or curl)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.warn("🚫 Blocked by CORS:", origin);
         callback(new Error("CORS not allowed for this origin"));
       }
     },
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "OPTIONS"], // Include OPTIONS for preflight
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
+
+// ✅ Handle preflight requests directly
+app.options("*", cors());
+
 
 app.use("/uploads", express.static("uploads")); // Serve uploaded files
 app.use(express.json()); // Handle JSON payloads
