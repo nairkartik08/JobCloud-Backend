@@ -200,6 +200,40 @@ app.get("/user/:email", (req, res) => {
   });
 });
 
+// ✅ POST JOB (Add new job)
+app.post("/add-job", express.json(), (req, res) => {
+  const { title, company, location, description, salary, experience, skills } = req.body;
+
+  if (!title || !company || !description) {
+    return res.status(400).send("❌ Missing required fields!");
+  }
+
+  const sql = `
+    INSERT INTO jobs (title, company, location, description, salary, experience, skills)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.query(sql, [title, company, location, description, salary, experience, skills], (err) => {
+    if (err) {
+      console.error("❌ Error posting job:", err);
+      return res.status(500).send("Error posting job");
+    }
+    res.send("✅ Job posted successfully!");
+  });
+});
+
+// ✅ GET JOBS (Fetch all jobs)
+app.get("/jobs", (req, res) => {
+  const sql = "SELECT * FROM jobs ORDER BY posted_at DESC";
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("❌ Error fetching jobs:", err);
+      return res.status(500).send("Error fetching jobs");
+    }
+    res.json(results);
+  });
+});
+
 
 // ✅ Start Server
 const PORT = process.env.PORT || 5000;
